@@ -50,7 +50,16 @@ async function startServer() {
             client.release();
             results.database = { status: 'success', message: `Připojeno k DB. Čas serveru: ${dbRes.rows[0].now}` };
         } catch (error: any) {
-            results.database = { status: 'error', message: error.message };
+            console.error('DB Connection Test Error:', error);
+            results.database = { 
+                status: 'error', 
+                message: error.message || 'Neznámá chyba při připojení k DB',
+                details: {
+                    code: error.code,
+                    name: error.name,
+                    stack: error.stack
+                }
+            };
         }
 
         // Test Redis
