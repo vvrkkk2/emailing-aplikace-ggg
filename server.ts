@@ -50,7 +50,14 @@ async function startServer() {
                 },
                 tls: {
                     rejectUnauthorized: false // Pro testovací účely ignorujeme self-signed certifikáty
-                }
+                },
+                // Přidání timeoutů, aby se UI netočilo donekonečna
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 10000,
+                // Vynucení IPv4 (řeší chybu ENETUNREACH 2a02:... na Renderu/Dockeru bez IPv6)
+                // @ts-ignore
+                family: 4
             });
 
             // Verify connection configuration
