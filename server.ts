@@ -4,6 +4,10 @@ import path from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
+import dns from 'dns';
+import { promisify } from 'util';
+
+const lookup = promisify(dns.lookup);
 
 // Načtení environment variables
 dotenv.config();
@@ -40,8 +44,11 @@ async function startServer() {
         }
 
         try {
+            // Vynucení IPv4 pomocí DNS lookupu
+            const { address } = await lookup(host, { family: 4 });
+
             const transporter = nodemailer.createTransport({
-                host,
+                host: address, // Použijeme přímo IPv4 adresu
                 port: parseInt(port, 10),
                 secure: secure !== undefined ? secure : parseInt(port, 10) === 465,
                 auth: {
@@ -49,15 +56,13 @@ async function startServer() {
                     pass
                 },
                 tls: {
-                    rejectUnauthorized: false // Pro testovací účely ignorujeme self-signed certifikáty
+                    rejectUnauthorized: false, // Pro testovací účely ignorujeme self-signed certifikáty
+                    servername: host // SNI (Server Name Indication) vyžaduje původní hostname, ne IP
                 },
                 // Přidání timeoutů, aby se UI netočilo donekonečna
                 connectionTimeout: 10000,
                 greetingTimeout: 10000,
-                socketTimeout: 10000,
-                // Vynucení IPv4 (řeší chybu ENETUNREACH 2a02:... na Renderu/Dockeru bez IPv6)
-                // @ts-ignore
-                family: 4
+                socketTimeout: 10000
             });
 
             // Verify connection configuration
