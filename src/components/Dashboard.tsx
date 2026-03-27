@@ -2,25 +2,15 @@ import { BarChart3, Mail, MousePointerClick, Reply, Server, CheckCircle2, AlertC
 
 export function Dashboard() {
   const stats = [
-    { label: 'Odeslané (Dnes)', value: '1,240', icon: Mail, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Open Rate', value: '42.8%', icon: BarChart3, color: 'text-green-600', bg: 'bg-green-100' },
-    { label: 'Click Rate', value: '12.4%', icon: MousePointerClick, color: 'text-purple-600', bg: 'bg-purple-100' },
-    { label: 'Reply Rate', value: '5.2%', icon: Reply, color: 'text-orange-600', bg: 'bg-orange-100' },
+    { label: 'Odeslané (Dnes)', value: '0', icon: Mail, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { label: 'Open Rate', value: '0.0%', icon: BarChart3, color: 'text-green-600', bg: 'bg-green-100' },
+    { label: 'Click Rate', value: '0.0%', icon: MousePointerClick, color: 'text-purple-600', bg: 'bg-purple-100' },
+    { label: 'Reply Rate', value: '0.0%', icon: Reply, color: 'text-orange-600', bg: 'bg-orange-100' },
   ];
 
-  const campaigns = [
-    { id: 1, name: 'Q3 B2B Outreach - CZ', status: 'Běží', sent: 450, opened: 202, replied: 36, replyRate: '8.0%' },
-    { id: 2, name: 'SaaS Founders - US', status: 'Pozastaveno', sent: 120, opened: 45, replied: 2, replyRate: '1.6%' },
-    { id: 3, name: 'Marketing Agencies', status: 'Dokončeno', sent: 1000, opened: 510, replied: 85, replyRate: '8.5%' },
-  ];
+  const campaigns: any[] = [];
 
-  const accounts = [
-    { id: 1, email: 'jan@getfirma.cz', provider: 'Google Workspace', limit: 50, sent: 42, status: 'online' },
-    { id: 2, email: 'info@getfirma.cz', provider: 'Google Workspace', limit: 50, sent: 50, status: 'limit_reached' },
-    { id: 3, email: 'hello@zkuste-firma.cz', provider: 'Microsoft 365', limit: 30, sent: 12, status: 'online' },
-    { id: 4, email: 'sales@zkuste-firma.cz', provider: 'Microsoft 365', limit: 30, sent: 0, status: 'error' },
-    { id: 5, email: 'petr@zkuste-firma.cz', provider: 'Microsoft 365', limit: 30, sent: 5, status: 'online' },
-  ];
+  const accounts: any[] = [];
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-12">
@@ -97,7 +87,7 @@ export function Dashboard() {
           <div className="p-6 border-b border-gray-100 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-gray-900">Stav E-mailových Účtů</h2>
             <div className="text-sm text-gray-500">
-              Aktivní: <span className="font-medium text-gray-900">18/20</span>
+              Aktivní: <span className="font-medium text-gray-900">0/0</span>
             </div>
           </div>
           <div className="overflow-x-auto flex-1">

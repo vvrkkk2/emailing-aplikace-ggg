@@ -1,11 +1,7 @@
 import { Upload, Search, Filter } from 'lucide-react';
 
 export function Contacts() {
-  const contacts = [
-    { id: 1, email: 'petr@novak-corp.cz', name: 'Petr Novák', company: 'Novák Corp', role: 'CEO', status: 'active' },
-    { id: 2, email: 'jana@techstart.io', name: 'Jana Malá', company: 'TechStart', role: 'CTO', status: 'replied' },
-    { id: 3, email: 'tomas@marketing-pro.cz', name: 'Tomáš Dvořák', company: 'Marketing Pro', role: 'CMO', status: 'bounced' },
-  ];
+  const contacts: any[] = [];
 
   return (
     <div className="max-w-6xl mx-auto">

@@ -17,10 +17,7 @@ interface SmtpAccount {
 }
 
 export function Accounts() {
-  const [accounts, setAccounts] = useState<SmtpAccount[]>([
-    { id: '1', email: 'jan@getfirma.cz', smtp_host: 'smtp.gmail.com', smtp_port: 465, smtp_user: 'jan@getfirma.cz', smtp_pass: 'dummy', provider: 'Google Workspace', limit: 50, sent: 42, status: 'active' },
-    { id: '2', email: 'info@getfirma.cz', smtp_host: 'smtp.gmail.com', smtp_port: 465, smtp_user: 'info@getfirma.cz', smtp_pass: 'dummy', provider: 'Google Workspace', limit: 50, sent: 50, status: 'limit_reached' },
-  ]);
+  const [accounts, setAccounts] = useState<SmtpAccount[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

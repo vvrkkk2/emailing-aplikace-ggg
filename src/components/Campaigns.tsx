@@ -6,14 +6,8 @@ export function Campaigns() {
     { 
       id: 1, 
       delayDays: 0, 
-      subject: 'Rychlý dotaz ohledně {{firma}}', 
-      body: '{Ahoj|Dobrý den|Zdravím} {{jmeno}},\n\nvšiml jsem si, že v {{firma}} děláte skvělé věci. Jako {{pozice}} určitě řešíte optimalizaci procesů.\n\nMáte tento týden 10 minut na krátký call?\n\nS pozdravem,\nJan' 
-    },
-    { 
-      id: 2, 
-      delayDays: 3, 
-      subject: 'Re: Rychlý dotaz ohledně {{firma}}', 
-      body: '{Ahoj|Dobrý den} {{jmeno}},\n\njen posouvám tento e-mail nahoru. Podařilo se vám na to mrknout?\n\nDíky,\nJan' 
+      subject: '', 
+      body: '' 
     }
   ]);
   
