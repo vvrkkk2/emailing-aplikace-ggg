@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export let emailWorker: Worker | null = null;
+export let redisConnection: IORedis | null = null;
 
 const redisUrl = process.env.REDIS_URL;
 
@@ -14,16 +15,16 @@ if (!redisUrl) {
 } else {
     // 1. Připojení k Redis (Upstash)
     // Upstash vyžaduje TLS (rejectUnauthorized: false)
-    const connection = new IORedis(redisUrl, {
+    redisConnection = new IORedis(redisUrl, {
         tls: redisUrl.includes('upstash') ? { rejectUnauthorized: false } : undefined,
         maxRetriesPerRequest: null
     });
 
-    connection.on('connect', () => {
+    redisConnection.on('connect', () => {
         console.log('✅ Připojeno k Redis (Upstash).');
     });
 
-    connection.on('error', (err) => {
+    redisConnection.on('error', (err) => {
         console.error('❌ Chyba připojení k Redis:', err);
     });
 
@@ -46,7 +47,7 @@ if (!redisUrl) {
         return { success: true, message: 'E-mail odeslán' };
 
     }, { 
-        connection, 
+        connection: redisConnection, 
         concurrency: 5 // Zpracovává max 5 e-mailů paralelně
     });
 

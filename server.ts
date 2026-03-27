@@ -35,6 +35,40 @@ async function startServer() {
         });
     });
 
+    // --- 1.5. VERIFY CONNECTIONS ENDPOINT ---
+    app.get('/api/system/verify-connections', async (req, res) => {
+        const results: any = {
+            database: { status: 'untested', message: '' },
+            redis: { status: 'untested', message: '' }
+        };
+
+        // Test PostgreSQL
+        try {
+            const { pool } = await import('./server/db');
+            const client = await pool.connect();
+            const dbRes = await client.query('SELECT NOW()');
+            client.release();
+            results.database = { status: 'success', message: `Připojeno k DB. Čas serveru: ${dbRes.rows[0].now}` };
+        } catch (error: any) {
+            results.database = { status: 'error', message: error.message };
+        }
+
+        // Test Redis
+        try {
+            const { redisConnection } = await import('./server/worker');
+            if (redisConnection) {
+                const pingRes = await redisConnection.ping();
+                results.redis = { status: 'success', message: `Připojeno k Redis. Odpověď: ${pingRes}` };
+            } else {
+                results.redis = { status: 'warning', message: 'Redis není nakonfigurován (REDIS_URL chybí).' };
+            }
+        } catch (error: any) {
+            results.redis = { status: 'error', message: error.message };
+        }
+
+        res.json(results);
+    });
+
     // --- 2. SMTP VERIFICATION ENDPOINT ---
     app.post('/api/smtp/verify', async (req, res) => {
         const { host, port, secure, user, pass } = req.body;
@@ -70,7 +104,28 @@ async function startServer() {
             res.json({ success: true, message: 'Připojení k SMTP bylo úspěšné!' });
         } catch (error: any) {
             console.error('SMTP Verify Error:', error);
-            res.status(500).json({ success: false, error: error.message || 'Nepodařilo se připojit k SMTP serveru.' });
+            
+            // Sestavení detailní chybové zprávy pro UI
+            let errorMessage = error.message || 'Nepodařilo se připojit k SMTP serveru.';
+            if (error.code === 'ETIMEDOUT') {
+                errorMessage = `Timeout: Server neodpověděl včas. Zkontrolujte port a firewall. (${error.address || host}:${error.port || port})`;
+            } else if (error.code === 'EAUTH') {
+                errorMessage = `Chyba přihlášení: Nesprávné jméno nebo heslo. (Odpověď serveru: ${error.response})`;
+            } else if (error.code === 'ESOCKET') {
+                errorMessage = `Chyba sítě: Nelze navázat spojení. (${error.command || 'Neznámý příkaz'})`;
+            } else if (error.code === 'ENOTFOUND') {
+                errorMessage = `Chyba DNS: Server ${host} nebyl nalezen.`;
+            }
+
+            res.status(500).json({ 
+                success: false, 
+                error: errorMessage,
+                details: {
+                    code: error.code,
+                    command: error.command,
+                    response: error.response
+                }
+            });
         }
     });
 
