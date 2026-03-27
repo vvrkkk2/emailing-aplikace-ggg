@@ -6,8 +6,10 @@ dotenv.config();
 // Připojení k Supabase (nebo jiné PostgreSQL databázi)
 export const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    // Supabase vyžaduje SSL pro externí připojení
-    ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : undefined
+    // Supabase vyžaduje SSL pro externí připojení. Použijeme robustnější nastavení.
+    ssl: process.env.DATABASE_URL?.includes('supabase') ? { 
+        rejectUnauthorized: false, // Často nutné pro cloudové DB, pokud nemáme CA certifikát
+    } : undefined
 });
 
 // Test připojení
