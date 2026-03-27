@@ -1,0 +1,5 @@
+{
+  "name": "ColdMail Pro",
+  "description": "Architektura a UI prototyp pro aplikaci na automatizaci cold e-mailů s podporou 20+ SMTP účtů.",
+  "requestFramePermissions": []
+}
