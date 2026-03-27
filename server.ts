@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import nodemailer from 'nodemailer';
 
 // Načtení environment variables
 dotenv.config();
@@ -30,7 +31,38 @@ async function startServer() {
         });
     });
 
-    // --- 2. OPEN TRACKING ENDPOINT ---
+    // --- 2. SMTP VERIFICATION ENDPOINT ---
+    app.post('/api/smtp/verify', async (req, res) => {
+        const { host, port, secure, user, pass } = req.body;
+
+        if (!host || !port || !user || !pass) {
+            return res.status(400).json({ success: false, error: 'Chybí povinné parametry (host, port, user, pass)' });
+        }
+
+        try {
+            const transporter = nodemailer.createTransport({
+                host,
+                port: parseInt(port, 10),
+                secure: secure !== undefined ? secure : parseInt(port, 10) === 465,
+                auth: {
+                    user,
+                    pass
+                },
+                tls: {
+                    rejectUnauthorized: false // Pro testovací účely ignorujeme self-signed certifikáty
+                }
+            });
+
+            // Verify connection configuration
+            await transporter.verify();
+            res.json({ success: true, message: 'Připojení k SMTP bylo úspěšné!' });
+        } catch (error: any) {
+            console.error('SMTP Verify Error:', error);
+            res.status(500).json({ success: false, error: error.message || 'Nepodařilo se připojit k SMTP serveru.' });
+        }
+    });
+
+    // --- 3. OPEN TRACKING ENDPOINT ---
     const PIXEL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
     app.get('/t/open/:tracking_id', async (req, res) => {
         const trackingId = req.params.tracking_id;
