@@ -131,25 +131,15 @@ export function Accounts() {
     setAccounts(prev => prev.map(a => a.id === id ? { ...a, status: 'verifying', error_message: undefined } : a));
 
     try {
-      const response = await fetch('/api/smtp/verify', {
+      const response = await fetch(`/api/accounts/${id}/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host: account.smtp_host,
-          port: account.smtp_port,
-          user: account.smtp_user,
-          pass: account.smtp_pass
-        })
+        headers: { 'Content-Type': 'application/json' }
       });
 
       const data = await response.json();
 
       if (data.success) {
         setAccounts(prev => prev.map(a => a.id === id ? { ...a, status: 'active', error_message: undefined } : a));
-        
-        // V produkci by se zde zavolal endpoint pro uložení do databáze
-        // await fetch('/api/smtp/save', { method: 'POST', body: JSON.stringify(account) });
-        
       } else {
         setAccounts(prev => prev.map(a => a.id === id ? { ...a, status: 'error', error_message: data.error } : a));
       }

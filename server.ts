@@ -222,7 +222,71 @@ async function startServer() {
         }
     });
 
-    // --- 2. SMTP VERIFICATION ENDPOINT ---
+    app.post('/api/accounts/:id/verify', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const { pool } = await import('./server/db');
+            const { decrypt } = await import('./server/encryption');
+            
+            const accountRes = await pool.query('SELECT * FROM smtp_accounts WHERE id = $1', [id]);
+            if (accountRes.rows.length === 0) {
+                return res.status(404).json({ success: false, error: 'Účet nenalezen' });
+            }
+            
+            const account = accountRes.rows[0];
+            let pass = '';
+            try {
+                pass = decrypt(account.smtp_pass_encrypted);
+            } catch (e) {
+                await pool.query('UPDATE smtp_accounts SET status = $1, last_error_message = $2 WHERE id = $3', ['error', 'Chyba dešifrování hesla', id]);
+                return res.status(500).json({ success: false, error: 'Chyba dešifrování hesla' });
+            }
+
+            const transporter = nodemailer.createTransport({
+                host: account.smtp_host,
+                port: Number(account.smtp_port),
+                secure: Number(account.smtp_port) === 465,
+                auth: {
+                    user: account.smtp_user,
+                    pass: pass
+                },
+                tls: {
+                    rejectUnauthorized: false
+                },
+                // Vynucení IPv4 (často řeší problémy s ESOCKET/Timeout na cloudu)
+                family: 4,
+                // Zvýšení timeoutů na 30 sekund (některé servery jsou pomalejší)
+                connectionTimeout: 30000,
+                greetingTimeout: 30000,
+                socketTimeout: 30000
+            });
+
+            try {
+                await transporter.verify();
+                await pool.query('UPDATE smtp_accounts SET status = $1, last_error_message = NULL WHERE id = $2', ['active', id]);
+                res.json({ success: true, message: 'Připojení k SMTP bylo úspěšné!' });
+            } catch (error: any) {
+                let errorMessage = error.message || 'Nepodařilo se připojit k SMTP serveru.';
+                if (error.code === 'ETIMEDOUT') {
+                    errorMessage = `Timeout: Server neodpověděl včas. Zkontrolujte port a firewall. (${error.address || account.smtp_host}:${error.port || account.smtp_port})`;
+                } else if (error.code === 'EAUTH') {
+                    errorMessage = `Chyba přihlášení: Nesprávné jméno nebo heslo. (Odpověď serveru: ${error.response})`;
+                } else if (error.code === 'ESOCKET') {
+                    errorMessage = `Chyba sítě: Nelze navázat spojení. (${error.command || 'Neznámý příkaz'})`;
+                } else if (error.code === 'ENOTFOUND') {
+                    errorMessage = `Chyba DNS: Server ${account.smtp_host} nebyl nalezen.`;
+                }
+                
+                await pool.query('UPDATE smtp_accounts SET status = $1, last_error_message = $2 WHERE id = $3', ['error', errorMessage, id]);
+                res.status(400).json({ success: false, error: errorMessage });
+            }
+        } catch (error: any) {
+            console.error('Verify Account Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // --- 4. SMTP VERIFICATION ENDPOINT (Pro ruční testování bez uložení) ---
     app.post('/api/smtp/verify', async (req, res) => {
         const { host, port, secure, user, pass } = req.body;
 
@@ -242,10 +306,12 @@ async function startServer() {
                 tls: {
                     rejectUnauthorized: false // Pro testovací účely ignorujeme self-signed certifikáty
                 },
-                // Přidání timeoutů, aby se UI netočilo donekonečna
-                connectionTimeout: 10000,
-                greetingTimeout: 10000,
-                socketTimeout: 10000
+                // Vynucení IPv4
+                family: 4,
+                // Zvýšení timeoutů na 30 sekund
+                connectionTimeout: 30000,
+                greetingTimeout: 30000,
+                socketTimeout: 30000
             });
 
             // Verify connection configuration
