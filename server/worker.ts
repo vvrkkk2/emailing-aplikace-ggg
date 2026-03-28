@@ -15,8 +15,13 @@ if (!redisUrl) {
 } else {
     // 1. Připojení k Redis (Upstash)
     // Upstash vyžaduje TLS (rejectUnauthorized: false)
+    // Pokud URL začíná na rediss://, ioredis automaticky zapne TLS.
+    // Pokud začíná na redis:// a my víme, že je to upstash, zapneme ho manuálně.
+    const isUpstash = redisUrl.includes('upstash');
+    const isSecure = redisUrl.startsWith('rediss://');
+    
     redisConnection = new IORedis(redisUrl, {
-        tls: redisUrl.includes('upstash') ? { rejectUnauthorized: false } : undefined,
+        tls: (isUpstash && !isSecure) ? { rejectUnauthorized: false } : undefined,
         maxRetriesPerRequest: null
     });
 
