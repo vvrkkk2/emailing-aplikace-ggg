@@ -3,11 +3,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const dbUrl = process.env.DATABASE_URL || '';
+const isSupabase = dbUrl.includes('supabase') || dbUrl.includes('pooler.supabase.com');
+
 // Připojení k Supabase (nebo jiné PostgreSQL databázi)
 export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     // Supabase vyžaduje SSL pro externí připojení. Použijeme robustnější nastavení.
-    ssl: process.env.DATABASE_URL?.includes('supabase') ? { 
+    ssl: isSupabase ? { 
         rejectUnauthorized: false, // Často nutné pro cloudové DB, pokud nemáme CA certifikát
     } : undefined
 });
