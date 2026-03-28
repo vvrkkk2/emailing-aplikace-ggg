@@ -21,6 +21,15 @@ async function startServer() {
     app.use(cors());
     app.use(express.json());
 
+    // --- 0. SPUŠTĚNÍ MIGRACÍ ---
+    try {
+        console.log('Kontrola a spuštění databázových migrací...');
+        const { migrate } = await import('./server/migrate');
+        await migrate();
+    } catch (error) {
+        console.error('Chyba při spouštění migrací:', error);
+    }
+
     // --- 1. HEALTH CHECK ENDPOINT (Pro Render) ---
     app.get('/health', (req, res) => {
         res.status(200).json({ 
