@@ -1,7 +1,53 @@
-import { Upload, Search, Filter } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, Search, Filter, Download } from 'lucide-react';
+import Papa from 'papaparse';
 
 export function Contacts() {
-  const contacts: any[] = [];
+  const [contacts, setContacts] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const newContacts = results.data.map((row: any, index) => ({
+          id: `contact-${Date.now()}-${index}`,
+          name: row.name || row.jmeno || row.Jméno || row.Name || '',
+          email: row.email || row.e_mail || row.Email || '',
+          company: row.company || row.firma || row.Firma || row.Company || '',
+          role: row.role || row.pozice || row.Pozice || row.Role || '',
+          status: 'active'
+        })).filter(c => c.email); // Přidáme jen ty, co mají e-mail
+
+        if (newContacts.length === 0) {
+            alert('V CSV souboru nebyly nalezeny žádné platné kontakty (chybí sloupec "email").');
+        } else {
+            setContacts(prev => [...prev, ...newContacts]);
+        }
+        
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      },
+      error: (error) => {
+        console.error('Chyba při parsování CSV:', error);
+        alert('Nepodařilo se zpracovat CSV soubor.');
+      }
+    });
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,name,email,company,role\nJan Novák,jan@novak.cz,Novák s.r.o.,CEO\nPetr Dvořák,petr@dvorak.cz,Dvořák a syn,CTO";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "kontakty_sablona.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -10,10 +56,30 @@ export function Contacts() {
           <h1 className="text-2xl font-bold text-gray-900">Kontakty</h1>
           <p className="text-gray-500 mt-1">Správa kontaktů a custom fields (JSONB)</p>
         </div>
-        <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
-          <Upload className="w-5 h-5" />
-          Import CSV
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={downloadTemplate}
+            className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Download className="w-5 h-5" />
+            Vzorové CSV
+          </button>
+          
+          <input 
+            type="file" 
+            accept=".csv" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Upload className="w-5 h-5" />
+            Import CSV
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

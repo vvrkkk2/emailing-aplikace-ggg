@@ -4,10 +4,6 @@ import path from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
-import dns from 'dns';
-import { promisify } from 'util';
-
-const lookup = promisify(dns.lookup);
 
 // Načtení environment variables
 dotenv.config();
@@ -87,11 +83,8 @@ async function startServer() {
         }
 
         try {
-            // Vynucení IPv4 pomocí DNS lookupu
-            const { address } = await lookup(host, { family: 4 });
-
             const transporter = nodemailer.createTransport({
-                host: address, // Použijeme přímo IPv4 adresu
+                host: host, // Použijeme původní hostname
                 port: parseInt(port, 10),
                 secure: secure !== undefined ? secure : parseInt(port, 10) === 465,
                 auth: {
@@ -99,8 +92,7 @@ async function startServer() {
                     pass
                 },
                 tls: {
-                    rejectUnauthorized: false, // Pro testovací účely ignorujeme self-signed certifikáty
-                    servername: host // SNI (Server Name Indication) vyžaduje původní hostname, ne IP
+                    rejectUnauthorized: false // Pro testovací účely ignorujeme self-signed certifikáty
                 },
                 // Přidání timeoutů, aby se UI netočilo donekonečna
                 connectionTimeout: 10000,

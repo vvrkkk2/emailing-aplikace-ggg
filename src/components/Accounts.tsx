@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play } from 'lucide-react';
+import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play, Download } from 'lucide-react';
 import Papa from 'papaparse';
 
 interface SmtpAccount {
@@ -42,9 +42,14 @@ export function Accounts() {
           limit: parseInt(row.daily_limit, 10) || 50,
           sent: 0,
           status: 'unverified'
-        }));
+        })).filter(a => a.smtp_host && a.smtp_user && a.smtp_pass);
 
-        setAccounts(prev => [...prev, ...newAccounts]);
+        if (newAccounts.length === 0) {
+            alert('V CSV souboru nebyly nalezeny žádné platné účty. Zkontrolujte názvy sloupců (smtp_host, smtp_port, smtp_user, smtp_pass).');
+        } else {
+            setAccounts(prev => [...prev, ...newAccounts]);
+        }
+        
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
       },
@@ -54,6 +59,17 @@ export function Accounts() {
         setIsUploading(false);
       }
     });
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,email,smtp_host,smtp_port,smtp_user,smtp_pass,daily_limit\njan@mojefirma.cz,smtp.forpsi.com,465,jan@mojefirma.cz,TajneHeslo123,50\npetr@mojefirma.cz,smtp.seznam.cz,465,petr@mojefirma.cz,JineHeslo456,100";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "smtp_ucty_sablona.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const verifyAccount = async (id: string) => {
@@ -99,6 +115,13 @@ export function Accounts() {
           <p className="text-gray-500 mt-1">Správa SMTP/IMAP účtů pro odesílání (Round Robin)</p>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={downloadTemplate}
+            className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Download className="w-5 h-5" />
+            Vzorové CSV
+          </button>
           <input 
             type="file" 
             accept=".csv" 
