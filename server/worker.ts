@@ -22,7 +22,8 @@ if (!redisUrl) {
     
     redisConnection = new IORedis(redisUrl, {
         tls: (isUpstash && !isSecure) ? { rejectUnauthorized: false } : undefined,
-        maxRetriesPerRequest: null
+        maxRetriesPerRequest: null,
+        family: 0 // Důležité pro Render/Upstash: umožňuje automatický fallback mezi IPv4 a IPv6
     });
 
     redisConnection.on('connect', () => {
