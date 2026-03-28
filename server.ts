@@ -80,6 +80,139 @@ async function startServer() {
         res.json(results);
     });
 
+    // --- 2. API ROUTES PRO KONTAKTY ---
+    app.get('/api/contacts', async (req, res) => {
+        try {
+            const { pool } = await import('./server/db');
+            const result = await pool.query('SELECT * FROM contacts ORDER BY created_at DESC');
+            res.json({ success: true, data: result.rows });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.post('/api/contacts/batch', async (req, res) => {
+        const { contacts } = req.body;
+        if (!contacts || !Array.isArray(contacts)) {
+            return res.status(400).json({ success: false, error: 'Neplatná data' });
+        }
+
+        try {
+            const { pool } = await import('./server/db');
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                let insertedCount = 0;
+                
+                // Získáme admin uživatele (pro zjednodušení přiřadíme vše prvnímu uživateli)
+                const userRes = await client.query('SELECT id FROM users LIMIT 1');
+                const userId = userRes.rows[0]?.id;
+                
+                if (!userId) {
+                    throw new Error('V databázi není žádný uživatel. Spusťte nejprve migraci.');
+                }
+
+                for (const contact of contacts) {
+                    // Rozdělení jména na first_name a last_name (zjednodušeně)
+                    const nameParts = (contact.name || '').split(' ');
+                    const firstName = nameParts[0] || '';
+                    const lastName = nameParts.slice(1).join(' ') || '';
+                    
+                    const customFields = {
+                        company: contact.company || '',
+                        role: contact.role || ''
+                    };
+
+                    await client.query(`
+                        INSERT INTO contacts (user_id, email, first_name, last_name, custom_fields, status)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (user_id, email) DO UPDATE 
+                        SET first_name = EXCLUDED.first_name, 
+                            last_name = EXCLUDED.last_name,
+                            custom_fields = EXCLUDED.custom_fields
+                    `, [userId, contact.email, firstName, lastName, customFields, contact.status || 'active']);
+                    insertedCount++;
+                }
+                await client.query('COMMIT');
+                res.json({ success: true, message: `Úspěšně uloženo ${insertedCount} kontaktů.` });
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        } catch (error: any) {
+            console.error('Chyba při ukládání kontaktů:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // --- 3. API ROUTES PRO SMTP ÚČTY ---
+    app.get('/api/accounts', async (req, res) => {
+        try {
+            const { pool } = await import('./server/db');
+            const result = await pool.query('SELECT id, email, smtp_host, smtp_port, smtp_user, daily_limit, sent_today as sent, status, last_error_message as error_message FROM smtp_accounts ORDER BY created_at DESC');
+            res.json({ success: true, data: result.rows });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.post('/api/accounts/batch', async (req, res) => {
+        const { accounts } = req.body;
+        if (!accounts || !Array.isArray(accounts)) {
+            return res.status(400).json({ success: false, error: 'Neplatná data' });
+        }
+
+        try {
+            const { pool } = await import('./server/db');
+            const { encrypt } = await import('./server/encryption');
+            const client = await pool.connect();
+            
+            try {
+                await client.query('BEGIN');
+                let insertedCount = 0;
+                
+                const userRes = await client.query('SELECT id FROM users LIMIT 1');
+                const userId = userRes.rows[0]?.id;
+                
+                if (!userId) throw new Error('V databázi není žádný uživatel.');
+
+                for (const acc of accounts) {
+                    // Šifrování hesla
+                    const encryptedPass = encrypt(acc.smtp_pass);
+                    
+                    await client.query(`
+                        INSERT INTO smtp_accounts (user_id, email, smtp_host, smtp_port, smtp_user, smtp_pass_encrypted, imap_host, imap_port, daily_limit, status)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    `, [
+                        userId, 
+                        acc.email, 
+                        acc.smtp_host, 
+                        acc.smtp_port, 
+                        acc.smtp_user, 
+                        encryptedPass, 
+                        acc.smtp_host, // imap host (zjednodušeně stejný)
+                        993,           // imap port
+                        acc.limit || 50,
+                        acc.status || 'unverified'
+                    ]);
+                    insertedCount++;
+                }
+                await client.query('COMMIT');
+                res.json({ success: true, message: `Úspěšně uloženo ${insertedCount} účtů.` });
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        } catch (error: any) {
+            console.error('Chyba při ukládání účtů:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // --- 2. SMTP VERIFICATION ENDPOINT ---
     app.post('/api/smtp/verify', async (req, res) => {
         const { host, port, secure, user, pass } = req.body;

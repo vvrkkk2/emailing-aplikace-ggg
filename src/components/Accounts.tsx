@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play, Download } from 'lucide-react';
 import Papa from 'papaparse';
 
@@ -19,7 +19,39 @@ interface SmtpAccount {
 export function Accounts() {
   const [accounts, setAccounts] = useState<SmtpAccount[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await fetch('/api/accounts');
+      const data = await response.json();
+      if (data.success) {
+        const formatted = data.data.map((a: any) => ({
+          id: a.id,
+          email: a.email,
+          smtp_host: a.smtp_host,
+          smtp_port: a.smtp_port,
+          smtp_user: a.smtp_user,
+          smtp_pass: '********', // Heslo neposíláme z backendu
+          provider: a.smtp_host?.includes('gmail') ? 'Google Workspace' : a.smtp_host?.includes('office365') ? 'Microsoft 365' : 'Vlastní SMTP',
+          limit: a.daily_limit,
+          sent: a.sent || 0,
+          status: a.status,
+          error_message: a.error_message
+        }));
+        setAccounts(formatted);
+      }
+    } catch (error) {
+      console.error('Chyba při načítání účtů:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -30,7 +62,7 @@ export function Accounts() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
         const newAccounts: SmtpAccount[] = results.data.map((row: any, index) => ({
           id: `imported-${Date.now()}-${index}`,
           email: row.email || row.smtp_user || 'Neznámý e-mail',
@@ -46,11 +78,30 @@ export function Accounts() {
 
         if (newAccounts.length === 0) {
             alert('V CSV souboru nebyly nalezeny žádné platné účty. Zkontrolujte názvy sloupců (smtp_host, smtp_port, smtp_user, smtp_pass).');
+            setIsUploading(false);
         } else {
-            setAccounts(prev => [...prev, ...newAccounts]);
+            try {
+                const response = await fetch('/api/accounts/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accounts: newAccounts })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    await fetchAccounts();
+                } else {
+                    alert('Chyba při ukládání: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Chyba:', error);
+                alert('Chyba při komunikaci se serverem.');
+            } finally {
+                setIsUploading(false);
+            }
         }
         
-        setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
       },
       error: (error) => {

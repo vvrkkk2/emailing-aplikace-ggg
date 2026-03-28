@@ -1,19 +1,50 @@
-import { useState, useRef } from 'react';
-import { Upload, Search, Filter, Download } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Search, Filter, Download, Loader2 } from 'lucide-react';
 import Papa from 'papaparse';
 
 export function Contacts() {
   const [contacts, setContacts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  const fetchContacts = async () => {
+    try {
+      const response = await fetch('/api/contacts');
+      const data = await response.json();
+      if (data.success) {
+        // Transform database format to UI format
+        const formatted = data.data.map((c: any) => ({
+          id: c.id,
+          name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+          email: c.email,
+          company: c.custom_fields?.company || '',
+          role: c.custom_fields?.role || '',
+          status: c.status
+        }));
+        setContacts(formatted);
+      }
+    } catch (error) {
+      console.error('Chyba při načítání kontaktů:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsUploading(true);
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
         const newContacts = results.data.map((row: any, index) => ({
           id: `contact-${Date.now()}-${index}`,
           name: row.name || row.jmeno || row.Jméno || row.Name || '',
@@ -25,8 +56,29 @@ export function Contacts() {
 
         if (newContacts.length === 0) {
             alert('V CSV souboru nebyly nalezeny žádné platné kontakty (chybí sloupec "email").');
+            setIsUploading(false);
         } else {
-            setContacts(prev => [...prev, ...newContacts]);
+            try {
+                // Odeslání na backend
+                const response = await fetch('/api/contacts/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contacts: newContacts })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    await fetchContacts(); // Znovu načíst z databáze
+                } else {
+                    alert('Chyba při ukládání: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Chyba:', error);
+                alert('Chyba při komunikaci se serverem.');
+            } finally {
+                setIsUploading(false);
+            }
         }
         
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -34,6 +86,7 @@ export function Contacts() {
       error: (error) => {
         console.error('Chyba při parsování CSV:', error);
         alert('Nepodařilo se zpracovat CSV soubor.');
+        setIsUploading(false);
       }
     });
   };
