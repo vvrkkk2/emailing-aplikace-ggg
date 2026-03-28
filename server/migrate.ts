@@ -72,6 +72,15 @@ async function migrate() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS campaign_contacts (
+                campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
+                contact_id UUID REFERENCES contacts(id) ON DELETE CASCADE,
+                status VARCHAR(50) DEFAULT 'pending', -- pending, sent, bounced, unsubscribed
+                current_step INT DEFAULT 1,
+                last_sent_at TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (campaign_id, contact_id)
+            );
+
             CREATE TABLE IF NOT EXISTS sending_logs (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 tracking_id UUID UNIQUE DEFAULT gen_random_uuid(),

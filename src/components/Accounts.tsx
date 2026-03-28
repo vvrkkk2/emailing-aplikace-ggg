@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play, Download } from 'lucide-react';
+import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play, Download, X } from 'lucide-react';
 import Papa from 'papaparse';
 
 interface SmtpAccount {
@@ -21,6 +21,11 @@ export function Accounts() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [newAcc, setNewAcc] = useState({ host: '', port: 465, user: '', pass: '', limit: 50 });
 
   useEffect(() => {
     fetchAccounts();
@@ -50,6 +55,66 @@ export function Accounts() {
       console.error('Chyba při načítání účtů:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleManualAdd = async () => {
+    if (!newAcc.host || !newAcc.user || !newAcc.pass) {
+      alert('Vyplňte prosím host, uživatele i heslo.');
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      // 1. Nejdřív otestujeme spojení
+      const verifyRes = await fetch('/api/smtp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: newAcc.host,
+          port: newAcc.port,
+          user: newAcc.user,
+          pass: newAcc.pass
+        })
+      });
+      const verifyData = await verifyRes.json();
+
+      if (!verifyData.success) {
+        alert('Ověření selhalo:\n' + verifyData.error);
+        setIsTesting(false);
+        return;
+      }
+
+      // 2. Pokud je úspěšné, uložíme účet
+      const accountToSave = {
+        email: newAcc.user,
+        smtp_host: newAcc.host,
+        smtp_port: newAcc.port,
+        smtp_user: newAcc.user,
+        smtp_pass: newAcc.pass,
+        limit: newAcc.limit,
+        status: 'active'
+      };
+
+      const saveRes = await fetch('/api/accounts/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accounts: [accountToSave] })
+      });
+      const saveData = await saveRes.json();
+
+      if (saveData.success) {
+        alert('Účet byl úspěšně ověřen a přidán!');
+        setIsModalOpen(false);
+        setNewAcc({ host: '', port: 465, user: '', pass: '', limit: 50 });
+        fetchAccounts();
+      } else {
+        alert('Chyba při ukládání: ' + saveData.error);
+      }
+    } catch (error: any) {
+      alert('Chyba sítě: ' + error.message);
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -178,7 +243,10 @@ export function Accounts() {
             {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
             Import z CSV
           </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors"
+          >
             <Plus className="w-5 h-5" />
             Přidat Účet
           </button>
@@ -249,6 +317,88 @@ export function Accounts() {
           </div>
         ))}
       </div>
+
+      {/* Modal pro ruční přidání účtu */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Přidat SMTP Účet</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
+                <input 
+                  type="text" 
+                  placeholder="např. smtp.forpsi.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  value={newAcc.host}
+                  onChange={e => setNewAcc({...newAcc, host: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                  <input 
+                    type="number" 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    value={newAcc.port}
+                    onChange={e => setNewAcc({...newAcc, port: parseInt(e.target.value) || 465})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Denní limit</label>
+                  <input 
+                    type="number" 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    value={newAcc.limit}
+                    onChange={e => setNewAcc({...newAcc, limit: parseInt(e.target.value) || 50})}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Uživatelské jméno (E-mail)</label>
+                <input 
+                  type="text" 
+                  placeholder="např. info@mojedomena.cz"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  value={newAcc.user}
+                  onChange={e => setNewAcc({...newAcc, user: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Heslo</label>
+                <input 
+                  type="password" 
+                  placeholder="********"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  value={newAcc.pass}
+                  onChange={e => setNewAcc({...newAcc, pass: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Zrušit
+              </button>
+              <button 
+                onClick={handleManualAdd}
+                disabled={isTesting}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {isTesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                Ověřit a Uložit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

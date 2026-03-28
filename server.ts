@@ -100,6 +100,32 @@ async function startServer() {
         }
     });
 
+    app.put('/api/contacts/:id', async (req, res) => {
+        const { id } = req.params;
+        const { first_name, last_name, email, custom_fields } = req.body;
+        try {
+            const { pool } = await import('./server/db');
+            await pool.query(
+                'UPDATE contacts SET first_name = $1, last_name = $2, email = $3, custom_fields = $4 WHERE id = $5',
+                [first_name, last_name, email, custom_fields, id]
+            );
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.delete('/api/contacts/:id', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const { pool } = await import('./server/db');
+            await pool.query('DELETE FROM contacts WHERE id = $1', [id]);
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     app.post('/api/contacts/batch', async (req, res) => {
         const { contacts } = req.body;
         if (!contacts || !Array.isArray(contacts)) {
@@ -286,7 +312,197 @@ async function startServer() {
         }
     });
 
-    // --- 4. SMTP VERIFICATION ENDPOINT (Pro ruční testování bez uložení) ---
+    // --- 4. API ROUTES PRO KAMPANĚ ---
+    app.get('/api/campaigns', async (req, res) => {
+        try {
+            const { pool } = await import('./server/db');
+            const result = await pool.query(`
+                SELECT c.*, 
+                       COUNT(DISTINCT cc.contact_id) as contacts_count,
+                       COUNT(DISTINCT cs.id) as steps_count
+                FROM campaigns c
+                LEFT JOIN campaign_contacts cc ON c.id = cc.campaign_id
+                LEFT JOIN campaign_steps cs ON c.id = cs.campaign_id
+                GROUP BY c.id
+                ORDER BY c.created_at DESC
+            `);
+            res.json({ success: true, data: result.rows });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.post('/api/campaigns', async (req, res) => {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ success: false, error: 'Název kampaně je povinný' });
+
+        try {
+            const { pool } = await import('./server/db');
+            const userRes = await pool.query('SELECT id FROM users LIMIT 1');
+            const userId = userRes.rows[0]?.id;
+            
+            if (!userId) throw new Error('V databázi není žádný uživatel.');
+
+            const result = await pool.query(
+                'INSERT INTO campaigns (user_id, name) VALUES ($1, $2) RETURNING *',
+                [userId, name]
+            );
+            
+            // Vytvoření výchozího kroku
+            await pool.query(
+                'INSERT INTO campaign_steps (campaign_id, subject, body, step_number) VALUES ($1, $2, $3, $4)',
+                [result.rows[0].id, 'Předmět e-mailu', 'Obsah e-mailu...', 1]
+            );
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.get('/api/campaigns/:id', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const { pool } = await import('./server/db');
+            
+            // Kampaň
+            const campaignRes = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
+            if (campaignRes.rows.length === 0) return res.status(404).json({ success: false, error: 'Kampaň nenalezena' });
+            
+            // Kroky
+            const stepsRes = await pool.query('SELECT * FROM campaign_steps WHERE campaign_id = $1 ORDER BY step_number ASC', [id]);
+            
+            // Kontakty v kampani
+            const contactsRes = await pool.query(`
+                SELECT c.*, cc.status as campaign_status, cc.current_step
+                FROM contacts c
+                JOIN campaign_contacts cc ON c.id = cc.contact_id
+                WHERE cc.campaign_id = $1
+            `, [id]);
+
+            res.json({ 
+                success: true, 
+                data: {
+                    ...campaignRes.rows[0],
+                    steps: stepsRes.rows,
+                    contacts: contactsRes.rows
+                }
+            });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.put('/api/campaigns/:id/steps/:stepId', async (req, res) => {
+        const { id, stepId } = req.params;
+        const { subject, body } = req.body;
+        
+        try {
+            const { pool } = await import('./server/db');
+            await pool.query(
+                'UPDATE campaign_steps SET subject = $1, body = $2 WHERE id = $3 AND campaign_id = $4',
+                [subject, body, stepId, id]
+            );
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.post('/api/campaigns/:id/contacts', async (req, res) => {
+        const { id } = req.params;
+        const { contactIds } = req.body; // Pole ID kontaktů
+        
+        if (!contactIds || !Array.isArray(contactIds)) {
+            return res.status(400).json({ success: false, error: 'Neplatná data' });
+        }
+
+        try {
+            const { pool } = await import('./server/db');
+            const client = await pool.connect();
+            
+            try {
+                await client.query('BEGIN');
+                for (const contactId of contactIds) {
+                    await client.query(`
+                        INSERT INTO campaign_contacts (campaign_id, contact_id) 
+                        VALUES ($1, $2) 
+                        ON CONFLICT DO NOTHING
+                    `, [id, contactId]);
+                }
+                await client.query('COMMIT');
+                res.json({ success: true });
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.delete('/api/campaigns/:id/contacts/:contactId', async (req, res) => {
+        const { id, contactId } = req.params;
+        try {
+            const { pool } = await import('./server/db');
+            await pool.query('DELETE FROM campaign_contacts WHERE campaign_id = $1 AND contact_id = $2', [id, contactId]);
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    app.post('/api/campaigns/:id/test', async (req, res) => {
+        const { id } = req.params;
+        const { testEmail, accountId, stepId } = req.body;
+
+        if (!testEmail || !accountId || !stepId) {
+            return res.status(400).json({ success: false, error: 'Chybí parametry (testEmail, accountId, stepId)' });
+        }
+
+        try {
+            const { pool } = await import('./server/db');
+            const { decrypt } = await import('./server/encryption');
+            
+            // Získání kroku kampaně
+            const stepRes = await pool.query('SELECT subject, body FROM campaign_steps WHERE id = $1 AND campaign_id = $2', [stepId, id]);
+            if (stepRes.rows.length === 0) return res.status(404).json({ success: false, error: 'Krok kampaně nenalezen' });
+            const step = stepRes.rows[0];
+
+            // Získání SMTP účtu
+            const accountRes = await pool.query('SELECT * FROM smtp_accounts WHERE id = $1 AND status = $2', [accountId, 'active']);
+            if (accountRes.rows.length === 0) return res.status(404).json({ success: false, error: 'SMTP účet nenalezen nebo není aktivní' });
+            const account = accountRes.rows[0];
+
+            const pass = decrypt(account.smtp_pass_encrypted);
+
+            const transporter = nodemailer.createTransport({
+                host: account.smtp_host,
+                port: Number(account.smtp_port),
+                secure: Number(account.smtp_port) === 465,
+                auth: { user: account.smtp_user, pass: pass },
+                tls: { rejectUnauthorized: false },
+                family: 4,
+                connectionTimeout: 10000
+            });
+
+            await transporter.sendMail({
+                from: `"${account.smtp_user}" <${account.email}>`,
+                to: testEmail,
+                subject: `[TEST] ${step.subject}`,
+                html: step.body
+            });
+
+            res.json({ success: true, message: 'Testovací e-mail odeslán' });
+        } catch (error: any) {
+            console.error('Test Email Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // --- 5. SMTP VERIFICATION ENDPOINT (Pro ruční testování bez uložení) ---
     app.post('/api/smtp/verify', async (req, res) => {
         const { host, port, secure, user, pass } = req.body;
 
