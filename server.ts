@@ -35,7 +35,13 @@ async function startServer() {
     app.get('/api/system/verify-connections', async (req, res) => {
         const results: any = {
             database: { status: 'untested', message: '' },
-            redis: { status: 'untested', message: '' }
+            redis: { status: 'untested', message: '' },
+            environment: {
+                DATABASE_URL: process.env.DATABASE_URL ? `Nastaveno (délka: ${process.env.DATABASE_URL.length}, začíná na: ${process.env.DATABASE_URL.substring(0, 11)}...)` : 'Chybí',
+                REDIS_URL: process.env.REDIS_URL ? `Nastaveno (délka: ${process.env.REDIS_URL.length}, začíná na: ${process.env.REDIS_URL.substring(0, 9)}...)` : 'Chybí',
+                AES_ENCRYPTION_KEY: process.env.AES_ENCRYPTION_KEY ? `Nastaveno (délka: ${process.env.AES_ENCRYPTION_KEY.length} znaků - MUSÍ BÝT PŘESNĚ 32!)` : 'Chybí',
+                TRACKING_DOMAIN: process.env.TRACKING_DOMAIN ? `Nastaveno (${process.env.TRACKING_DOMAIN})` : 'Chybí'
+            }
         };
 
         // Test PostgreSQL
