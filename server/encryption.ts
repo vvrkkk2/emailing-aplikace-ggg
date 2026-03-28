@@ -4,9 +4,27 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const ALGORITHM = 'aes-256-cbc';
-// Tajný klíč musí mít přesně 32 znaků (256 bitů)
-const ENCRYPTION_KEY = process.env.AES_ENCRYPTION_KEY || '12345678901234567890123456789012';
 const IV_LENGTH = 16; // Pro AES je to vždy 16
+
+// Získáme klíč z prostředí
+let rawKey = process.env.AES_ENCRYPTION_KEY || '12345678901234567890123456789012';
+
+// 1. Odstraníme případné neviditelné znaky (mezery, entery) na začátku a na konci
+rawKey = rawKey.trim();
+
+// 2. Zajistíme, aby měl klíč PŘESNĚ 32 znaků (256 bitů)
+if (rawKey.length !== 32) {
+    console.warn(`[UPOZORNĚNÍ] AES_ENCRYPTION_KEY nemá přesně 32 znaků (má ${rawKey.length}). Automaticky upravuji na 32 znaků.`);
+    if (rawKey.length > 32) {
+        // Pokud je delší, ořízneme ho
+        rawKey = rawKey.substring(0, 32);
+    } else {
+        // Pokud je kratší, doplníme ho nulami
+        rawKey = rawKey.padEnd(32, '0');
+    }
+}
+
+const ENCRYPTION_KEY = rawKey;
 
 /**
  * Zašifruje text (např. heslo k SMTP) pomocí AES-256-CBC.
