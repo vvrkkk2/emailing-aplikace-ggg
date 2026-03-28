@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Server, CheckCircle2, AlertCircle, Upload, Loader2, Play, Download, X } from 'lucide-react';
 import Papa from 'papaparse';
 
@@ -46,7 +46,7 @@ export function Accounts() {
           provider: a.smtp_host?.includes('gmail') ? 'Google Workspace' : a.smtp_host?.includes('office365') ? 'Microsoft 365' : 'Vlastní SMTP',
           limit: a.daily_limit,
           sent: a.sent || 0,
-          status: a.status,
+          status: a.status as any,
           error_message: a.error_message
         }));
         setAccounts(formatted);
@@ -138,7 +138,7 @@ export function Accounts() {
           provider: row.smtp_host?.includes('gmail') ? 'Google Workspace' : row.smtp_host?.includes('office365') ? 'Microsoft 365' : 'Vlastní SMTP',
           limit: parseInt(row.daily_limit, 10) || 50,
           sent: 0,
-          status: 'unverified'
+          status: 'unverified' as any
         })).filter(a => a.smtp_host && a.smtp_user && a.smtp_pass);
 
         if (newAccounts.length === 0) {

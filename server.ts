@@ -285,7 +285,7 @@ async function startServer() {
                 connectionTimeout: 30000,
                 greetingTimeout: 30000,
                 socketTimeout: 30000
-            });
+            } as any);
 
             try {
                 await transporter.verify();
@@ -486,7 +486,7 @@ async function startServer() {
                 tls: { rejectUnauthorized: false },
                 family: 4,
                 connectionTimeout: 10000
-            });
+            } as any);
 
             await transporter.sendMail({
                 from: `"${account.smtp_user}" <${account.email}>`,
@@ -528,7 +528,7 @@ async function startServer() {
                 connectionTimeout: 30000,
                 greetingTimeout: 30000,
                 socketTimeout: 30000
-            });
+            } as any);
 
             // Verify connection configuration
             await transporter.verify();

@@ -20,7 +20,7 @@ async function seed() {
         `);
         
         const userId = userResult.rows[0].id;
-        console.log(\`✅ Uživatel vytvořen/nalezen s ID: \${userId}\`);
+        console.log(`✅ Uživatel vytvořen/nalezen s ID: ${userId}`);
 
         // 2. Vytvoření ukázkového SMTP účtu
         const encryptedPassword = encrypt('dummy-smtp-password');
@@ -39,9 +39,9 @@ async function seed() {
                     $2, 'imap.mojefirma.cz', 993, 'active'
                 );
             `, [userId, encryptedPassword]);
-            console.log(\`✅ Ukázkový SMTP účet byl přidán.\`);
+            console.log(`✅ Ukázkový SMTP účet byl přidán.`);
         } else {
-            console.log(\`ℹ️ Ukázkový SMTP účet již existuje, přeskakuji.\`);
+            console.log(`ℹ️ Ukázkový SMTP účet již existuje, přeskakuji.`);
         }
 
         // 3. Vytvoření ukázkové kampaně
@@ -52,7 +52,7 @@ async function seed() {
         `, [userId]);
         
         const campaignId = campaignResult.rows[0].id;
-        console.log(\`✅ Ukázková kampaň byla vytvořena.\`);
+        console.log(`✅ Ukázková kampaň byla vytvořena.`);
 
         // 4. Přidání statistik pro dnešní den, aby grafy nebyly prázdné
         await client.query(`
@@ -61,7 +61,7 @@ async function seed() {
             ON CONFLICT DO NOTHING;
         `, [campaignId]);
 
-        console.log(\`✅ Ukázkové statistiky byly přidány.\`);
+        console.log(`✅ Ukázkové statistiky byly přidány.`);
 
         await client.query('COMMIT');
         console.log('🎉 Seedování úspěšně dokončeno!');
@@ -74,7 +74,7 @@ async function seed() {
 }
 
 // Umožňuje spuštění skriptu napřímo: npx tsx server/seed.ts
-if (import.meta.url === \`file://\${process.argv[1]}\`) {
+if (import.meta.url === `file://${process.argv[1]}`) {
     seed().then(() => process.exit(0));
 }
 
